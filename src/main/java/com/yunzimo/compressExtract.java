@@ -13,6 +13,8 @@ import java.util.List;
 
 public class compressExtract
 {
+
+    public static String[] allowTypes = new String[] { ".txt", ".png", "gif", ".img",".doc" };
     /**
      * 根据给定密码压缩文件(s)到指定目录
      *
@@ -22,6 +24,24 @@ public class compressExtract
      * @return 最终的压缩文件存放的绝对路径,如果为null则说明压缩失败.
      */
     public static String compress(String destFileName, String passwd, File... files) {
+        ZipParameters parameters = getZipParameters(passwd);
+        try {
+            ZipFile zipFile = new ZipFile(destFileName);
+            for (File file : files) {
+                if(isValid(file.getName(),compressExtract.allowTypes)){
+                    zipFile.addFile(file, parameters);
+                }
+            }
+            return destFileName;
+        } catch (ZipException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    //获取压缩包所需要的参数
+    private static ZipParameters getZipParameters(String passwd) {
         ZipParameters parameters = new ZipParameters();
         parameters.setCompressionMethod(Zip4jConstants.COMP_DEFLATE); // 压缩方式
         parameters.setCompressionLevel(Zip4jConstants.DEFLATE_LEVEL_NORMAL); // 压缩级别
@@ -30,17 +50,7 @@ public class compressExtract
             parameters.setEncryptionMethod(Zip4jConstants.ENC_METHOD_STANDARD); // 加密方式
             parameters.setPassword(passwd.toCharArray());
         }
-        try {
-            ZipFile zipFile = new ZipFile(destFileName);
-            for (File file : files) {
-                zipFile.addFile(file, parameters);
-            }
-            return destFileName;
-        } catch (ZipException e) {
-            e.printStackTrace();
-        }
-
-        return null;
+        return parameters;
     }
 
     /**
@@ -52,17 +62,13 @@ public class compressExtract
      * @return 最终的压缩文件存放的绝对路径,如果为null则说明压缩失败.
      */
     public static String compress(String destFileName, String passwd, File file) {
-        ZipParameters parameters = new ZipParameters();
-        parameters.setCompressionMethod(Zip4jConstants.COMP_DEFLATE); // 压缩方式
-        parameters.setCompressionLevel(Zip4jConstants.DEFLATE_LEVEL_NORMAL); // 压缩级别
-        if (!"".equals(passwd)) {
-            parameters.setEncryptFiles(true);
-            parameters.setEncryptionMethod(Zip4jConstants.ENC_METHOD_STANDARD); // 加密方式
-            parameters.setPassword(passwd.toCharArray());
-        }
+        ZipParameters parameters = getZipParameters(passwd);
         try {
             ZipFile zipFile = new ZipFile(destFileName);
-            zipFile.addFile(file, parameters);
+            System.out.println(file.getName());
+            if(isValid(file.getName(),compressExtract.allowTypes)){
+                zipFile.addFile(file, parameters);
+            }
             return destFileName;
         } catch (ZipException e) {
             e.printStackTrace();
@@ -102,7 +108,7 @@ public class compressExtract
             assert files != null;
             for(File f:files){
                 if (f.isDirectory()){
-                    return compressFolder(destFileName, passwd, f);
+                    compressFolder(destFileName, passwd, f);
                 }else {
                     compress(destFileName,passwd,f);
                 }
@@ -111,98 +117,22 @@ public class compressExtract
         return null;
     }
 
-    /**
-     * 根据所给密码解压zip压缩包到指定目录
-     * <p>
-     * 如果指定目录不存在,可以自动创建,不合法的路径将导致异常被抛出
-     *
-     * @param zipFile zip压缩包绝对路径
-     * @param dest 指定解压文件夹位置
-     * @param passwd 密码(可为空)
-     * @return 解压后的文件数组
-     * @throws ZipException
-     */
-    @SuppressWarnings("unchecked")
-    public static File[] deCompress(File zipFile, String dest, String passwd) throws ZipException {
-        //1.判断指定目录是否存在
-        File destDir = new File(dest);
-        if (destDir.isDirectory() && !destDir.exists()) {
-            destDir.mkdir();
+    //判断文件的文件扩展名是否有效
+    public static boolean isValid(String contentType, String... allowTypes) {
+        if (null == contentType || "".equals(contentType)) {
+            return false;
         }
-        //2.初始化zip工具
-        ZipFile zFile = new ZipFile(zipFile);
-        zFile.setFileNameCharset("UTF-8");
-        if (!zFile.isValidZipFile()) {
-            throw new ZipException("压缩文件不合法,可能被损坏.");
-        }
-        //3.判断是否已加密
-        if (zFile.isEncrypted()) {
-            zFile.setPassword(passwd.toCharArray());
-        }
-        //4.解压所有文件
-        zFile.extractAll(dest);
-        List<FileHeader> headerList = zFile.getFileHeaders();
-        List<File> extractedFileList = new ArrayList<File>();
-        for(FileHeader fileHeader : headerList) {
-            if (!fileHeader.isDirectory()) {
-                extractedFileList.add(new File(destDir,fileHeader.getFileName()));
+        for (String type : allowTypes) {
+            if (contentType.contains(type)) {
+                return true;
             }
         }
-        File [] extractedFiles = new File[extractedFileList.size()];
-        extractedFileList.toArray(extractedFiles);
-        return extractedFiles;
+        return false;
     }
-    /**
-     * 解压无密码的zip压缩包到指定目录
-     * @param zipFile zip压缩包
-     * @param dest 指定解压文件夹位置
-     * @return 解压后的文件数组
-     * @throws ZipException
-     */
-    public static File[] deCompress(File zipFile, String dest){
-        try {
-            return deCompress(zipFile, dest, null);
-        } catch (ZipException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-    /**
-     * 根据所给密码解压zip压缩包到指定目录
-     * @param zipFilePath zip压缩包绝对路径
-     * @param dest 指定解压文件夹位置
-     * @param passwd 压缩包密码
-     * @return 解压后的所有文件数组
-     */
-    public static File[] deCompress(String zipFilePath, String dest, String passwd){
-        try {
-            return deCompress(new File(zipFilePath), dest, passwd);
-        } catch (ZipException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-    /**
-     * 无密码解压压缩包到指定目录
-     * @param zipFilePath zip压缩包绝对路径
-     * @param dest 指定解压文件夹位置
-     * @return 解压后的所有文件数组
-     */
-    public static File[] deCompress(String zipFilePath, String dest){
-        try {
-            return deCompress(new File(zipFilePath), dest, null);
-        } catch (ZipException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
 
     public static void main(String[] args) {
-//		String folder = "D:\\upload\\backup\\down\\dezip\\";
-//		compress("D:/upload/zip/测试.zip", "123456", folder);
 
-        //deCompress("D:/upload/zip/测试.zip", "D:/upload/zip/unzip", "123456");
+
         compressFolder("C:\\Users\\12\\Documents\\aa1.zip","123",new File("C:\\Users\\12\\Documents\\Tencent Files\\2310501264\\FileRecv"));
 
     }
